@@ -6,45 +6,34 @@
 #include <unistd.h> // כלול פונקציות של מערכת Unix
 #include "blockChain.h" // כלול את קובץ הכותרת של מחלקת blockChain
 
-#define PIPE_NAME "/mnt/mta/server_pipe" // הגדר שם צינור עבור השרת
-#define DIFFICULTY_FILE "/mnt/mta/difficulty.conf" // הגדר מיקום קובץ הקונפיגורציה של רמת הקושי
 
-void createPipe(const std::string& pipeName) {
-    mkfifo(pipeName.c_str(), 0666); // יצירת צינור חדש עם הרשאות קריאה וכתיבה
-}
 
-int readDifficultyFromFile() {
-    std::ifstream file(DIFFICULTY_FILE); // פתיחת קובץ הקונפיגורציה לקריאה
-    if (!file.is_open()) {
-        std::cerr << "Error: Could not open difficulty configuration file." << std::endl; // הודעת שגיאה אם לא ניתן לפתוח את הקובץ
-        exit(EXIT_FAILURE); // יציאה עם קוד שגיאה
-    }
 
-    int difficulty;
-    file >> difficulty; // קריאת רמת הקושי מהקובץ
-    file.close(); // סגירת הקובץ
-
-    return difficulty; // החזרת רמת הקושי
-}
-
-void handleNewMiner(blockChain& blockchain, const std::string& minerPipeName) {
-    int minerPipeFd = open(minerPipeName.c_str(), O_WRONLY); // פתיחת צינור של הכורה לכתיבה
-    if (minerPipeFd == -1) {
-        std::cerr << "Error: Could not open miner pipe for writing." << std::endl; // הודעת שגיאה אם לא ניתן לפתוח את הצינור
-        return;
-    }
-
-    BLOCK_T currentBlock = blockchain.getBlock(); // קבלת הבלוק הנוכחי מהבלוקצ'יין
-    write(minerPipeFd, &currentBlock, sizeof(BLOCK_T)); // כתיבת הבלוק לצינור של הכורה
-    close(minerPipeFd); // סגירת הצינור של הכורה
-}
 
 int main() {
-    createPipe(PIPE_NAME); // יצירת צינור עבור השרת
+    TLV tlv_to_send;
+    tlv_to_send.subscription =false;
+    //tlv_to_send.block intilzie
+    TLV tlv_to_check;
+    int num_miners=0;
+     char* server_pipe  = (char*)malloc(MAX_PATH_LEN);
+     char* server_pipe_for_id= (char*)malloc(MAX_PATH_LEN);
+     char* miner_pipe  = (char*)malloc(MAX_PATH_LEN);
+
+    std::vector<int> miners_pipes; // יצירת רשימה ריקה עבור המינימר
+
+     
+    if (mkfifo(server_pipe, 0666) == -1) { // server reads from 
+        if (errno != EEXIST) {
+            perror("mkfifo");
+            return 1;
+        }
+    }
     int difficulty = readDifficultyFromFile(); // קריאת רמת הקושי מקובץ הקונפיגורציה
+
     blockChain blockchain(difficulty); // יצירת אובייקט של הבלוקצ'יין עם רמת הקושי
 
-    int serverPipeFd = open(PIPE_NAME, O_RDONLY); // פתיחת צינור השרת לקריאה
+    int serverPipeFd = open(server_pipe, O_RDONLY);
     if (serverPipeFd == -1) {
         std::cerr << "Error: Could not open server pipe for reading." << std::endl; // הודעת שגיאה אם לא ניתן לפתוח את הצינור
         return 1;
@@ -52,10 +41,30 @@ int main() {
 
     char minerPipeName[256];
     while (true) {
-        ssize_t bytesRead = read(serverPipeFd, minerPipeName, sizeof(minerPipeName)); // קריאת שם הצינור של הכורה מהצינור של השרת
-        if (bytesRead > 0) {
-            handleNewMiner(blockchain, std::string(minerPipeName)); // טיפול בכורה החדש
+        
+        ssize_t bytesRead = read(serverPipeFd,&tlv_to_check, sizeof(minerPipeName)); // קריאת שם הצינור של הכורה מהצינור של השרת
+        if(tlv_to_check.subscription)
+        {
+            num_miners++;
+            sprintf(miner_pipe, "%s%d", MINER_PIPE, num_miners);// create /mnt/mta/miner_pipe_id
+            // open pipe for mine with path /mnt/mta/miner_pipe_id
+            if (mkfifo(miner_pipe, 0666) == -1) {
+                if (errno != EEXIST) {
+                    perror("mkfifo");
+                    return 1;
+                }
+            }
+            miners_pipes.push_back(open(miner_pipe, O_WRONLY));
+            write(miners_pipes[num_miners-1], &tlv_to_send, sizeof(tlv_to_check));
         }
+        else
+        {
+            //check if he block is valid or not
+            //print the added block 
+            // make tlv_to_send
+            //send tlv to all miners go with iteration on fd vector
+        }
+
     }
 
     close(serverPipeFd); // סגירת צינור השרת

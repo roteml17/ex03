@@ -16,40 +16,23 @@ std::string getMinerPipeName(int minerId) {
 }
 
 int main(int argc, char* argv[]) {
-    if (argc != 2) {
-        std::cerr << "Usage: " << argv[0] << " <miner_id>" << std::endl; // הודעת שגיאה אם לא סופק מזהה הכורה
-        return 1;
+    TLV tlv_to_send;
+    char* server_pipe  = (char*)malloc(MAX_PATH_LEN);// s/mnt/mta/server_pipe
+    char* server_pipe_for_id = (char*)malloc(MAX_PATH_LEN);// /mnt/mta/server_pipe_for_id
+    char* miner_pipe  = (char*)malloc(MAX_PATH_LEN);// /mnt/mta/miner_pipe_
+    int server_pipe_for_id_fd = open(server_pipe_for_id, O_RDONLY);
+    int server_pipe_fd = open(server_pipe,O_WRONLY);
+    int id;
+    write(server_pipe_fd,&tlv_to_send ,sizeof(TLV));
+    read(server_pipe_for_id_fd,&id,sizeof(int));
+    sprintf(miner_pipe,"%s%s",miner_pipe,id); // create /mnt/mta/miner_pipe_id
+    int miner_pipe_fd = open(miner_pipe,O_RDONLY|O_NONBLOCK);
+    sleep(1);
+    while (true)
+    {
+        read(miner_pipe_fd,&tlv_to_send ,sizeof(TLV));
+        //change realyed_by to the miner id
+        //mineblock the loop that check the zeros
     }
-
-    int minerId = std::stoi(argv[1]); // המרה של מזהה הכורה ממחרוזת למספר שלם
-    std::string minerPipeName = getMinerPipeName(minerId); // יצירת שם הצינור של הכורה
-
-    createPipe(minerPipeName); // יצירת צינור עבור הכורה
-
-    int serverPipeFd = open(SERVER_PIPE, O_WRONLY); // פתיחת צינור השרת לכתיבה
-    if (serverPipeFd == -1) {
-        std::cerr << "Error: Could not open server pipe for writing." << std::endl; // הודעת שגיאה אם לא ניתן לפתוח את הצינור
-        return 1;
-    }
-
-    write(serverPipeFd, minerPipeName.c_str(), minerPipeName.size() + 1); // כתיבת שם הצינור של הכורה לצינור של השרת
-    close(serverPipeFd); // סגירת צינור השרת
-
-    int minerPipeFd = open(minerPipeName.c_str(), O_RDONLY); // פתיחת צינור הכורה לקריאה
-    if (minerPipeFd == -1) {
-        std::cerr << "Error: Could not open miner pipe for reading." << std::endl; // הודעת שגיאה אם לא ניתן לפתוח את הצינור
-        return 1;
-    }
-
-    BLOCK_T currentBlock;
-    read(minerPipeFd, &currentBlock, sizeof(BLOCK_T)); // קריאת הבלוק הנוכחי מהצינור של הכורה
-
-    blockChain blockchain(currentBlock.difficulty); // יצירת אובייקט של הבלוקצ'יין עם רמת הקושי של הבלוק הנוכחי
-    blockchain.setBlock(currentBlock); // הגדרת הבלוק הנוכחי בבלוקצ'יין
-    blockchain.startMining(minerId, minerPipeName); // התחלת כרייה
-
-    close(minerPipeFd); // סגירת צינור הכורה
-    unlink(minerPipeName.c_str()); // מחיקת הצינור של הכורה
-
-    return 0;
+    
 }

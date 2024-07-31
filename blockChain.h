@@ -3,7 +3,11 @@
 
 #include <vector>
 #include <string>
-
+#define MAIN_PATH "/mnt/mta/"
+#define SERVER_PATH "server_pipe" // הגדר שם צינור עבור השרת
+#define DIFFICULTY_FILE "difficulty.conf" // הגדר מיקום קובץ הקונפיגורציה של רמת הקושי
+#define MINER_PIPE "miner_pipe_" // הגדר שם צינור עבור המינימר
+#define MAX_PATH_LEN 512
 struct BLOCK_T {
     int index;
     int timestamp;
@@ -12,7 +16,11 @@ struct BLOCK_T {
     std::string hash;
     int difficulty;
 };
-
+class TLV {
+public:
+    BLOCK_T block;
+    bool subscription = true;
+}
 class blockChain {
 public:
     blockChain(int difficulty);
