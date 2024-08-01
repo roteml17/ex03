@@ -18,5 +18,5 @@ RUN g++ miner.cpp blockChain.cpp -o miner -lpthread
 # Create the directory for the pipe
 RUN mkdir -p /mnt/mta
 
-# Command to run the miner application
-CMD ["./miner"]
+# Command to run the miner application with an environment variable for the miner_id
+CMD ["sh", "-c", "./miner ${MINER_ID}"]
