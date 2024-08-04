@@ -1,27 +1,25 @@
 #include "blockChain.h"
-#include <iostream>
-#include <fstream>
-#include <ctime>
-#include <thread>
-#include <chrono>
-#include <cstdlib>
-#include <fcntl.h>
-#include <unistd.h>
-
+#include <string.h>
 blockChain::blockChain(int difficulty) : difficulty(difficulty) {
     BLOCK_T genesis;
-    genesis.index = 0;
-    genesis.timestamp = time(nullptr);    
-    genesis.data = "Genesis Block";
-    genesis.previousHash = "";
+    genesis.height = 0;
+    genesis.timeStamp = time(nullptr);
+    genesis.prev_hash = 0;
+    genesis.difficulty = difficulty;
+    genesis.nonce = 0;
+    genesis.relayed_by = -1;
     genesis.hash = calculateHash(genesis);
 
     chain.push_back(genesis); // הוספת הבלוק הראשון (הגנזיס) לבלוקצ'יין
 }
 
-std::string blockChain::calculateHash(const BLOCK_T& block) const {
-    std::string toHash = std::to_string(block.index) + block.previousHash + std::to_string(block.timestamp) + block.data;
-    return std::to_string(std::hash<std::string>{}(toHash));
+int blockChain::calculateHash(const BLOCK_T& block) const {
+    std::string input = to_string(block.height) +
+                   to_string(block.timeStamp) +
+                   to_string(block.prev_hash) +
+                   to_string(block.nonce) +
+                   to_string(block.relayed_by);
+    return crc32(0,reinterpret_cast<const unsigned char*>(input.c_str()),input.length());
 }
 
 void blockChain::addBlock(const BLOCK_T& newBlock) {
@@ -34,6 +32,19 @@ BLOCK_T blockChain::getBlock() const {
 
 void blockChain::setBlock(const BLOCK_T& block) {
     chain.push_back(block); // הוספת הבלוק המתקבל לבלוקצ'יין
+}
+
+bool blockChain::validationProofOfWork(int hash, int difficulty)
+{
+    for(int i = 0; i < difficulty; ++i)
+    {
+        if((hash & (1 << (31 - i))) != 0) 
+        {
+            return false;
+        }
+    }
+
+    return true;    
 }
 
 void blockChain::startMining(int minerId, const std::string& minerPipeName) {
