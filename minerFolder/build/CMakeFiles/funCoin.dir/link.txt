@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/funCoin.dir/miner.cpp.o -o funCoin  /usr/lib/x86_64-linux-gnu/libz.so 

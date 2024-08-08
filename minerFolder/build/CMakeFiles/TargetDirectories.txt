@@ -1,0 +1,3 @@
+/home/rotemlahav/ex03/minerFolder/build/CMakeFiles/funCoin.dir
+/home/rotemlahav/ex03/minerFolder/build/CMakeFiles/edit_cache.dir
+/home/rotemlahav/ex03/minerFolder/build/CMakeFiles/rebuild_cache.dir

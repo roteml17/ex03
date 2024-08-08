@@ -1,0 +1,30 @@
+# Use an official Ubuntu base image
+FROM ubuntu:20.04
+
+# Install necessary packages
+RUN apt-get update && apt-get install -y \
+    g++ \
+    make \
+    zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set the working directory
+WORKDIR /usr/src/ex03
+
+# Copy the current directory contents into the container at /usr/src/ex03
+COPY . .
+
+# Compile the server application
+RUN g++ -o server server.cpp -lz
+
+# Create necessary pipes and directories
+RUN mkdir -p /mnt/mta && \
+    mkfifo /mnt/mta/server_pipe && \
+    mkfifo /mnt/mta/server_pipe_for_id && \
+    mkdir -p /var/log
+
+# Set the log file path
+ENV LOG_PATH=/var/log/mtacoin.log
+
+# Command to run the server application
+CMD ["./server"]

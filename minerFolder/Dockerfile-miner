@@ -1,0 +1,29 @@
+# Use an official Ubuntu base image
+FROM ubuntu:20.04
+
+# Install necessary packages
+RUN apt-get update && apt-get install -y \
+    g++ \
+    make \
+    zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set the working directory
+WORKDIR /usr/src/ex03
+
+# Copy the miner source code
+COPY . .
+
+# Compile the miner application
+RUN g++ -o miner miner.cpp -lz
+
+# Create necessary pipes and directories (if required)
+RUN mkdir -p /mnt/mta && \
+    mkfifo /mnt/mta/miner_pipe && \
+    mkdir -p /var/log
+
+# Set the log file path
+ENV LOG_PATH=/var/log/mtacoin.log
+
+# Command to run the miner application
+CMD ["./miner"]
