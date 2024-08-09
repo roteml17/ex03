@@ -10,12 +10,15 @@
 #include <errno.h>
 #include <cerrno>  // Include errno for error handling
 #include <cstring> // Include strerror for error message
+
 #define SERVER_PIPE "/mnt/mta/server_pipe"
 #define SERVER_PIPE_FOR_ID "/mnt/mta/serverPipeForId"
 #define MINER_PIPE_PREFIX "/mnt/mta/miner_pipe_"
 #define CONFIG_FILE "/mnt/mta/config.txt"
 #define LOG_PATH "/var/log/mtacoin.log"
 #define MAX_PATH_LEN 256
+#define BLOCK_HEADER "newBlock:"
+#define SUBSCRIPTION_HEADER "subscription:"
 
 struct BLOCK_T {
     int height;
@@ -27,12 +30,8 @@ struct BLOCK_T {
     int relayed_by;
 };
 
-struct TLV {
-public:
-    BLOCK_T block;
-    bool subscription = true;
-};
-
+int difficulty = 0;
+BLOCK_T blockToMine = {};
 std::unordered_map<int,int> miners_subscribed;
 
 void writeLogMessageToFile(FILE* logFile, std::string messageToSend)
@@ -84,19 +83,20 @@ int calculateHash(const BLOCK_T& block) {
     return crc32(0,reinterpret_cast<const unsigned char*>(input.c_str()),input.length());
 }
 
-TLV creatingNewTLV(int difficulty)
+BLOCK_T creatingfirstBlock()
 {
-    TLV genesis;
-    genesis.block.height = 0;
-    genesis.block.timeStamp = time(nullptr);
-    genesis.block.prev_hash = 0;
-    genesis.block.difficulty = difficulty;
-    genesis.block.nonce = 0;
-    genesis.block.relayed_by = -1;
-    genesis.block.hash = calculateHash(genesis.block);
+    BLOCK_T genesis;
+    genesis.height = 0;
+    genesis.timeStamp = time(nullptr);
+    genesis.prev_hash = 0;
+    genesis.difficulty = difficulty;
+    genesis.nonce = 0;
+    genesis.relayed_by = -1;
+    genesis.hash = calculateHash(genesis);
 
     return genesis;
 }
+
 void createPipe(char* pipeName) {
     int result = mkfifo(pipeName, 0766);
     if (result == -1) {
@@ -118,7 +118,7 @@ bool validationProofOfWork(int hash, int difficulty)
 }
 
 //block validation
-bool isBlockValid(const BLOCK_T& block, std::vector<BLOCK_T> blocks_chain)
+bool isBlockValid(const BLOCK_T& block, std::vector<BLOCK_T> &blocks_chain)
 {
     // Check if the block's prev_hash matches the hash of the previous block
     if (block.height > 0 && block.prev_hash != blocks_chain.back().hash)
@@ -130,43 +130,101 @@ bool isBlockValid(const BLOCK_T& block, std::vector<BLOCK_T> blocks_chain)
     return validationProofOfWork(block.hash, block.difficulty);
 }
 
-void addMiner(int serverPipeForIdFd, std::vector<int>& miners_pipes, std::vector<BLOCK_T> blocks_chain, FILE* logFile, int& num_miners, char miner_pipe[]) {
-    // צור את שם הצינור עבור הכורה החדש
-    sprintf(miner_pipe, "%s%d", MINER_PIPE_PREFIX, num_miners + 1); // יצירת /mnt/mta/miner_pipe_id
-    //createPipe(miner_pipe);
-
-    num_miners++;
-    std::cout << num_miners << std::endl;
-    write(serverPipeForIdFd, &num_miners, sizeof(int));
-
-    // פתח את הצינור לכתיבה והוסף אותו לרשימת הצינורות
-    int minerPipeFd = open(miner_pipe, O_RDWR);
-    if (minerPipeFd == -1) {
-        writeLogMessageToFile(logFile, "Error opening miner pipe " + std::string(miner_pipe) + strerror(errno));
-        return;
+int extractMinerID(const std::string& line) {
+    size_t startPos = line.find_first_of("0123456789"); // Find the first digit
+    if (startPos != std::string::npos) {
+        size_t endPos = line.find_first_not_of("0123456789", startPos); // Find the end of the number
+        return std::stoi(line.substr(startPos, endPos - startPos)); // Extract the miner ID
     }
+    return -1; // Return an invalid ID if no digit is found
+}
 
-    // הגדל את מספר הכורים
-    miners_subscribed[num_miners] = minerPipeFd;
-    miners_pipes.push_back(minerPipeFd);
+// Function to create the pipe name based on the miner ID
+std::string createPipeName(int minerID) {
+    return "/mnt/mta/miner_pipe_" + std::to_string(minerID);
+}
 
-    // שלח את הבלוק הנוכחי לכורה החדש
-    TLV tlv_to_send;
-    tlv_to_send.block = blocks_chain.back();
-    write(minerPipeFd, &tlv_to_send, sizeof(tlv_to_send));
+bool hashValidation(int calcultedHash)
+{
+    return (calcultedHash == blockToMine.hash);
+}
 
-    // כתוב לוג של הפעולה
-    writeLogMessageToFile(logFile, "Miner " + std::to_string(num_miners) + " connected with pipe " + std::string(miner_pipe));
+void subscriptionOrNewBlockRequest(char buffer[], std::vector<int>& miners_pipes, FILE* logFile, std::vector<BLOCK_T> &blocks_chain) {
+
+    std::string bufferStr(buffer);
+    int subHeader_length = strlen(SUBSCRIPTION_HEADER);
+    int blockHeader_length = strlen(BLOCK_HEADER);
+
+    if (bufferStr.compare(0, subHeader_length, SUBSCRIPTION_HEADER) == 0)
+        {
+            int minerID = extractMinerID(buffer);
+
+            if (minerID == -1) {
+                writeLogMessageToFile(logFile, "Invalid miner ID in connection request");
+                return;
+                }
+
+            std::string currentPipeName = createPipeName(minerID);
+            int minerPipeFD = open(currentPipeName.c_str(), O_WRONLY);
+
+            if (minerPipeFD == -1) {
+                writeLogMessageToFile(logFile, "Error opening miner #" + std::to_string(minerID) + " pipe");
+                return;
+                }
+
+            // Add miner pipe FD to list of miners' FDs
+            miners_subscribed.emplace(minerID, minerPipeFD);
+            miners_pipes.push_back(minerID);
+
+            writeLogMessageToFile(logFile, "Received connection request from miner #" + std::to_string(minerID) + 
+                                                                ", pipe name: " + currentPipeName);
+            write(minerPipeFD, &blockToMine, sizeof(BLOCK_T));
+
+        }
+    else if (bufferStr.compare(0, blockHeader_length, BLOCK_HEADER) == 0)
+        {
+            // Extract the block from the buffer
+            BLOCK_T minedBlock;
+            std::memcpy(&minedBlock, buffer + blockHeader_length, sizeof(BLOCK_T));
+
+            // Calculate checksum
+            unsigned int checksum = calculateHash(minedBlock);
+
+            // Validate the block
+            if (isBlockValid(minedBlock ,blocks_chain) && hashValidation(checksum)) {
+                // Log the successful validation and block addition
+                std::string logMessage = "Server: New block added by " + std::to_string(minedBlock.relayed_by) + 
+                                 ", attributes: height(" + std::to_string(minedBlock.height) + 
+                                 "), timestamp (" + std::to_string(minedBlock.timeStamp) + 
+                                 "), hash(0x" + std::to_string(minedBlock.hash) + 
+                                 "), prev_hash(0x" + std::to_string(minedBlock.prev_hash) + 
+                                 "), difficulty(" + std::to_string(minedBlock.difficulty) + 
+                                 "), nonce(" + std::to_string(minedBlock.nonce) + ")";
+                writeLogMessageToFile(logFile, logMessage);
+
+                // Add mined block to the blockchain
+                blocks_chain.insert(blocks_chain.begin(), minedBlock);
+
+                // Create a new block based on the mined block
+                BLOCK_T newBlock = {};
+                newBlock.prev_hash = minedBlock.hash;
+                newBlock.height = (int)blocks_chain.size();
+                newBlock.difficulty = difficulty;                
+
+                // Send the new block to all subscribed miners
+                for (auto& miner : miners_subscribed) {
+                    write(miner.second, &newBlock, sizeof(BLOCK_T));
+                }
+            }
+        }
 }
 
 int main() {
-    TLV tlv_to_send;
-    TLV first_tlv;  
-    int num_miners=0;
-
     char server_pipe[MAX_PATH_LEN] = SERVER_PIPE;
     char server_pipe_for_id[MAX_PATH_LEN] = SERVER_PIPE_FOR_ID;
     char miner_pipe[MAX_PATH_LEN];
+    std::vector<int> miners_pipes; // יצירת רשימה ריקה עבור המינימר
+    std::vector<BLOCK_T> blocks_chain;
 
     FILE* logFile = fopen(LOG_PATH, "r");
     if (logFile == NULL) {
@@ -174,71 +232,32 @@ int main() {
         return 1;
     }
 
-    int difficulty = 30;
+    difficulty = 15;
     //readDifficultyFromFile(); // קריאת רמת הקושי מקובץ הקונפיגורציה
 
-    std::vector<int> miners_pipes; // יצירת רשימה ריקה עבור המינימר
-    std::vector<BLOCK_T> blocks_chain;
-    first_tlv = creatingNewTLV(difficulty);
-    blocks_chain.push_back(first_tlv.block);
-
-    tlv_to_send = creatingNewTLV(difficulty);
-    tlv_to_send.block.prev_hash = blocks_chain.back().hash;
-    tlv_to_send.block.height = static_cast<int>(blocks_chain.size());
-    tlv_to_send.block.difficulty = difficulty;
-
-    createPipe(SERVER_PIPE);
-    int serverPipeFd = open(SERVER_PIPE, O_RDWR);
+    createPipe(server_pipe);
+    int serverPipeFd = open(server_pipe, O_RDWR);
     if (serverPipeFd == -1) {
     std::cout << "Error opening server pipe " << server_pipe << ". Error message: " << strerror(errno) << std::endl;
     return 1;
-}
-    
-    writeLogMessageToFile(logFile, "Listeting on " + std::string(SERVER_PIPE));
-
-    // if (mkfifo(server_pipe_for_id, 0666) == -1 && errno != EEXIST) {
-    //     perror("mkfifo");
-    //     return 1;
-    // }
-
-    // blockChain blockchain(difficulty); // יצירת אובייקט של הבלוקצ'יין עם רמת הקושי
-    createPipe(SERVER_PIPE_FOR_ID);
-    int serverPipeForIdFd = open(SERVER_PIPE_FOR_ID, O_RDWR);
-    if (serverPipeForIdFd == -1) {
-        writeLogMessageToFile(logFile, "Error opening id pipe " + serverPipeForIdFd);
-        return 1;
     }
 
+    writeLogMessageToFile(logFile, "Listeting on " + std::string(SERVER_PIPE));
+
+    char buffer[256];
+
+    BLOCK_T first_block = creatingfirstBlock();
+    blocks_chain.push_back(first_block);
+
+    blockToMine.prev_hash = blocks_chain.front().hash;
+    blockToMine.height = (int)blocks_chain.size();
+    blockToMine.difficulty = difficulty;   
+
     while (true) {
-        ssize_t bytesRead = read(serverPipeFd,&tlv_to_send, sizeof(TLV)); // קריאת שם הצינור של הכורה מהצינור של השרת
-        if(tlv_to_send.subscription)
+        ssize_t bytesRead = read(serverPipeFd, buffer, 256); //read if sub or blk
+        if(bytesRead > 0) 
         {
-            addMiner(serverPipeForIdFd, miners_pipes, blocks_chain, logFile, num_miners, miner_pipe);
-        }
-        else
-        {
-            if (isBlockValid(tlv_to_send.block, blocks_chain))
-            {
-                std::string serverMassegeNewBlockAdded = "Server: New block added by " + std::to_string(tlv_to_send.block.relayed_by) +
-                                 ", attributes: height(" + std::to_string(tlv_to_send.block.height) + 
-                                 "), timestamp (" + std::to_string(tlv_to_send.block.timeStamp) + 
-                                 "), hash(0x" + std::to_string(tlv_to_send.block.hash) + 
-                                 "), prev_hash(0x" + std::to_string(tlv_to_send.block.prev_hash) + 
-                                 "), difficulty(" + std::to_string(tlv_to_send.block.difficulty) + 
-                                 "), nonce(" + std::to_string(tlv_to_send.block.nonce) + ")";
-                writeLogMessageToFile(logFile, serverMassegeNewBlockAdded);
-
-                blocks_chain.push_back(tlv_to_send.block);
-
-                tlv_to_send.block.prev_hash = blocks_chain.back().hash;
-                tlv_to_send.block.height = static_cast<int>(blocks_chain.size());
-                tlv_to_send.block.difficulty = difficulty;
-
-                for (auto& minerData : miners_subscribed)
-                {
-                    write(minerData.second, &tlv_to_send, sizeof(TLV));
-                }
-            }
+            subscriptionOrNewBlockRequest(buffer, miners_pipes, logFile, blocks_chain);        
         }
     } 
 
