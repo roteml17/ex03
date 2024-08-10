@@ -8,7 +8,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
-  "/home/rotemlahav/ex03/minerFolder/miner.cpp" "CMakeFiles/funCoin.dir/miner.cpp.o" "gcc" "CMakeFiles/funCoin.dir/miner.cpp.o.d"
+  "/home/idotzror/Downloads/linux-docker-container-exercise/minerFolder/miner.cpp" "CMakeFiles/funCoin.dir/miner.cpp.o" "gcc" "CMakeFiles/funCoin.dir/miner.cpp.o.d"
   )
 
 # Targets to which this target links.

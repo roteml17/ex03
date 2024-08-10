@@ -8,7 +8,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
-  "/home/rotemlahav/ex03/serverFolder/server.cpp" "CMakeFiles/funCoin.dir/server.cpp.o" "gcc" "CMakeFiles/funCoin.dir/server.cpp.o.d"
+  "/home/idotzror/Downloads/linux-docker-container-exercise/serverFolder/server.cpp" "CMakeFiles/funCoin.dir/server.cpp.o" "gcc" "CMakeFiles/funCoin.dir/server.cpp.o.d"
   )
 
 # Targets to which this target links.

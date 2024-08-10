@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <zlib.h>
 #include <vector>
+#include <list>
 #include <errno.h>
 #include <cerrno>  // Include errno for error handling
 #include <cstring> // Include strerror for error message
@@ -17,7 +18,7 @@
 #define CONFIG_FILE "/mnt/mta/config.txt"
 #define LOG_PATH "/var/log/mtacoin.log"
 #define MAX_PATH_LEN 256
-#define BLOCK_HEADER "newBlock:"
+#define BLOCK_HEADER "addANewBlock:"
 #define SUBSCRIPTION_HEADER "subscription:"
 
 struct BLOCK_T {
@@ -118,10 +119,10 @@ bool validationProofOfWork(int hash, int difficulty)
 }
 
 //block validation
-bool isBlockValid(const BLOCK_T& block, std::vector<BLOCK_T> &blocks_chain)
+bool isBlockValid(const BLOCK_T& block, std::list<BLOCK_T> &blocks_chain)
 {
     // Check if the block's prev_hash matches the hash of the previous block
-    if (block.height > 0 && block.prev_hash != blocks_chain.back().hash)
+    if (block.prev_hash != blocks_chain.front().hash)
     {
         return false;
     }
@@ -144,16 +145,16 @@ std::string createPipeName(int minerID) {
     return "/mnt/mta/miner_pipe_" + std::to_string(minerID);
 }
 
-bool hashValidation(int calcultedHash)
+bool hashValidation(int calcultedHash, BLOCK_T &minedBlock)
 {
-    return (calcultedHash == blockToMine.hash);
+    return (calcultedHash == minedBlock.hash);
 }
 
-void subscriptionOrNewBlockRequest(char buffer[], std::vector<int>& miners_pipes, FILE* logFile, std::vector<BLOCK_T> &blocks_chain) {
+void subscriptionOrNewBlockRequest(char buffer[], std::vector<int>& miners_pipes, FILE* logFile, std::list<BLOCK_T> &blocks_chain) {
 
     std::string bufferStr(buffer);
-    int subHeader_length = strlen(SUBSCRIPTION_HEADER);
-    int blockHeader_length = strlen(BLOCK_HEADER);
+    int subHeader_length = 14;
+    int blockHeader_length = 14;
 
     if (bufferStr.compare(0, subHeader_length, SUBSCRIPTION_HEADER) == 0)
         {
@@ -189,10 +190,13 @@ void subscriptionOrNewBlockRequest(char buffer[], std::vector<int>& miners_pipes
 
             // Calculate checksum
             unsigned int checksum = calculateHash(minedBlock);
-
+            
+            std::cout << checksum << std::endl << minedBlock.hash << std::endl << blocks_chain.front().hash << std::endl;
+            exit(0);
             // Validate the block
-            if (isBlockValid(minedBlock ,blocks_chain) && hashValidation(checksum)) {
+            if (isBlockValid(minedBlock ,blocks_chain) && hashValidation(checksum, minedBlock)) {
                 // Log the successful validation and block addition
+                std::cout << "after if" << std::endl;
                 std::string logMessage = "Server: New block added by " + std::to_string(minedBlock.relayed_by) + 
                                  ", attributes: height(" + std::to_string(minedBlock.height) + 
                                  "), timestamp (" + std::to_string(minedBlock.timeStamp) + 
@@ -203,7 +207,7 @@ void subscriptionOrNewBlockRequest(char buffer[], std::vector<int>& miners_pipes
                 writeLogMessageToFile(logFile, logMessage);
 
                 // Add mined block to the blockchain
-                blocks_chain.insert(blocks_chain.begin(), minedBlock);
+                blocks_chain.push_front(minedBlock);
 
                 // Create a new block based on the mined block
                 BLOCK_T newBlock = {};
@@ -224,7 +228,7 @@ int main() {
     char server_pipe_for_id[MAX_PATH_LEN] = SERVER_PIPE_FOR_ID;
     char miner_pipe[MAX_PATH_LEN];
     std::vector<int> miners_pipes; // יצירת רשימה ריקה עבור המינימר
-    std::vector<BLOCK_T> blocks_chain;
+    std::list<BLOCK_T> blocks_chain;
 
     FILE* logFile = fopen(LOG_PATH, "r");
     if (logFile == NULL) {
@@ -247,11 +251,12 @@ int main() {
     char buffer[256];
 
     BLOCK_T first_block = creatingfirstBlock();
-    blocks_chain.push_back(first_block);
+    blocks_chain.push_front(first_block);
 
     blockToMine.prev_hash = blocks_chain.front().hash;
     blockToMine.height = (int)blocks_chain.size();
-    blockToMine.difficulty = difficulty;   
+    blockToMine.difficulty = difficulty;
+    blockToMine.hash = calculateHash(blockToMine);
 
     while (true) {
         ssize_t bytesRead = read(serverPipeFd, buffer, 256); //read if sub or blk

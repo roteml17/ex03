@@ -244,6 +244,10 @@ CMakeFiles/funCoin.dir/server.cpp.o: ../server.cpp \
   /usr/include/c++/11/bits/stl_vector.h \
   /usr/include/c++/11/bits/stl_bvector.h \
   /usr/include/c++/11/bits/vector.tcc \
+  /usr/include/c++/11/list \
+  /usr/include/c++/11/bits/stl_list.h \
+  /usr/include/c++/11/bits/allocated_ptr.h \
+  /usr/include/c++/11/bits/list.tcc \
   /usr/include/c++/11/cstring \
   /usr/include/string.h \
   /usr/include/strings.h
@@ -252,6 +256,8 @@ CMakeFiles/funCoin.dir/server.cpp.o: ../server.cpp \
 /usr/include/string.h:
 
 /usr/include/c++/11/cstring:
+
+/usr/include/c++/11/bits/stl_list.h:
 
 /usr/include/c++/11/bits/vector.tcc:
 
@@ -328,6 +334,8 @@ CMakeFiles/funCoin.dir/server.cpp.o: ../server.cpp \
 /usr/include/c++/11/bits/basic_ios.tcc:
 
 /usr/include/c++/11/bits/locale_facets.tcc:
+
+/usr/include/c++/11/bits/list.tcc:
 
 /usr/include/x86_64-linux-gnu/c++/11/bits/ctype_inline.h:
 
@@ -585,6 +593,8 @@ CMakeFiles/funCoin.dir/server.cpp.o: ../server.cpp \
 
 /usr/include/x86_64-linux-gnu/bits/timex.h:
 
+/usr/include/c++/11/list:
+
 /usr/include/c++/11/bits/exception_ptr.h:
 
 /usr/include/c++/11/ext/string_conversions.h:
@@ -688,6 +698,8 @@ CMakeFiles/funCoin.dir/server.cpp.o: ../server.cpp \
 /usr/include/x86_64-linux-gnu/bits/types/struct___jmp_buf_tag.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/timer_t.h:
+
+/usr/include/c++/11/bits/allocated_ptr.h:
 
 /usr/include/x86_64-linux-gnu/bits/pthreadtypes.h:
 

@@ -12,7 +12,7 @@
 #define MINER_PIPE_PREFIX "/mnt/mta/miner_pipe_" 
 #define LOG_PATH "/var/log/mtacoin.log"
 #define SERVER_PIPE_FOR_ID "/mnt/mta/serverPipeForId"
-#define BLOCK_HEADER "newBlock:"
+#define BLOCK_HEADER "addANewBlock:"
 #define SUBSCRIPTION_HEADER "subscription:"
 #define MAX_PATH_LEN 256
 
@@ -26,8 +26,8 @@ struct BLOCK_T {
     int relayed_by;
 };
 
-BLOCK_T blockToMine;
-int difficulty = 0;
+BLOCK_T blockToMine = {};
+int difficulty = 15;
 
 void createPipe(const std::string& pipeName) {
     mkfifo(pipeName.c_str(), 0766); // יצירת צינור חדש עם הרשאות קריאה וכתיבה
@@ -172,9 +172,9 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    char buffer[sizeof(BLOCK_T) + sizeof(SUBSCRIPTION_HEADER)] = {0};  // Initialize the buffer with zeros
+    char buffer[sizeof(BLOCK_T) + sizeof(BLOCK_HEADER)] = {0};  // Initialize the buffer with zeros
     // Copy the BLOCK_HEADER into the buffer
-    std::memcpy(buffer, SUBSCRIPTION_HEADER, sizeof(SUBSCRIPTION_HEADER) - 1); // -1 to exclude the null terminator
+    std::memcpy(buffer, BLOCK_HEADER, sizeof(BLOCK_HEADER) - 1); // -1 to exclude the null terminator
 
     while (true)
     {
@@ -186,6 +186,7 @@ int main(int argc, char* argv[]) {
         {
             blockToMine.nonce++;
             blockToMine.timeStamp = time(nullptr);
+            blockToMine.prev_hash = blockToMine.hash;
             blockToMine.hash = calculateHash(blockToMine);
             
             if (validationProofOfWork(blockToMine.hash, blockToMine.difficulty))
@@ -196,12 +197,13 @@ int main(int argc, char* argv[]) {
                                                             ", difficulty " + std::to_string(blockToMine.difficulty); 
                 writeLogMessageToFile(logFile, messageFromMinerNewBlockMined);
 
-                memcpy(buffer + 9, &blockToMine, sizeof(BLOCK_T));
+                memcpy(buffer + 14, &blockToMine, sizeof(BLOCK_T));
                 write(server_pipe_fd, buffer, sizeof(buffer));
             }
 
             BLOCK_T block = {};
             read(server_pipe_fd, &block, sizeof(BLOCK_T));
+            //block.height = blockToMine.height + 1;
 
             if (block.height != 0 && block.height != blockToMine.height) 
             {

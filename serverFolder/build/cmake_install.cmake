@@ -1,4 +1,4 @@
-# Install script for directory: /home/rotemlahav/ex03/serverFolder
+# Install script for directory: /home/idotzror/Downloads/linux-docker-container-exercise/serverFolder
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -50,5 +50,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "/home/rotemlahav/ex03/serverFolder/build/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "/home/idotzror/Downloads/linux-docker-container-exercise/serverFolder/build/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
